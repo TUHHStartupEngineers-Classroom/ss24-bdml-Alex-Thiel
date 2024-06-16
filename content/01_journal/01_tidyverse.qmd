@@ -1,98 +1,104 @@
 ---
-title: "Tidyverse"
-author: "Joschka Schwarz"
+title: "Superviced ML Challenge"
+author: "Alexander Thiel"
 ---
 
 ::: callout-note
-You can delete everything in here and start fresh.
+Code is unfortunately not fully functioning. Errors present when comparing the predicted data to the testing dataset.
 :::
 
-This is a `.qmd` file. It is plain text with special features. Any time you write just like this, it will be compiled to normal text in the website. If you put a \# in front of your text, it will create a top level-header.
-
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
-
-# Text Formatting
-
-*italics* and **bold**
-
-superscript^2^ / subscript~2~
-
-~~strikethrough~~
-
-`verbatim code`
-
-> Blockquote
-
-# Headings
-
-## Header 2
-### Header 3
-#### Header 4
-##### Header 5
-###### Header 6
-
-# Links & Images
-
-<https://quarto.org>
-
-[Quarto](https://quarto.org)
-
-![Caption](../../assets/img/elephant.png)
-
-[![Caption](../../assets/img/elephant.png)](https://quarto.org)
-
-[![Caption](../../assets/img/elephant.png)](https://quarto.org "An elephant")
+```{r, eval = FALSE, echo = T}
 
 
-# Lists
 
-* unordered list
-    + sub-item 1
-    + sub-item 2
-        - sub-sub-item 1
-        
-*   item 2
+library(tidymodels)
+library(tidyverse)
+# Modeling
+library(parsnip)
 
-    Continued (indent 4 spaces)
-    
-    
-1. ordered list
-2. item 2
-    i) sub-item 1
-         A.  sub-sub-item 1
-         
-(@)  A list whose numbering
+# Preprocessing & Sampling
+library(recipes)
+library(rsample)
+# Modeling Error Metrics
+library(yardstick)
 
-continues after
+# Plotting Decision Trees
+library(rpart)
 
-(@)  an interruption
+# 1.0 Data Import and Preparation ----
 
-# Tables
+bike_features_tbl <- readRDS("Data/bike_features_tbl.rds")
 
-| Right | Left | Default | Center |
-|------:|:-----|---------|:------:|
-|   12  |  12  |    12   |    12  |
-|  123  |  123 |   123   |   123  |
-|    1  |    1 |     1   |     1  |
+bike_features_tbl %>% distinct(category_2)
 
-# Source Code
+bike_features_tbl <- bike_features_tbl %>%
+  select(model:url, `Rear Derailleur`, `Shift Lever`)%>%
+  mutate(id = row_number())
 
-Use ``` to delimit blocks of source code:
 
-```
-code
-```
+# 2.0 Model Building ----
 
-Add a language to syntax highlight code blocks:
+lm_mod <- linear_reg() %>% 
+  set_engine("lm")
 
-```{r}
-1 + 1
-```
+# 3.0 Create Features with Recipes package ----
 
-```{r}
-cars
-```
+set.seed(seed = 105)
+split_obj <- rsample::initial_split(bike_features_tbl, prop   = 0.80, strata = "category_2")
 
-```{r}
-plot(cars)
+# Check if testing contains all category_2 values
+split_obj %>% training() %>% distinct(category_2)
+split_obj %>% testing() %>% distinct(category_2)
+
+#training set contains all category_2 values that appear in testing
+
+# Assign training and test data
+train_tbl <- training(split_obj)
+test_tbl  <- testing(split_obj)
+
+rec <- 
+  recipe(price ~.,data = train_tbl) %>%
+  step_rm(url)%>%
+  update_role(id, new_role = "ID")%>%
+  #update_role(price, new_role = "outcome")%>%
+  step_dummy("Rear Derailleur")%>%
+  step_dummy("Shift Lever")%>%
+  step_zv(all_predictors())
+  #step_discretize(price)
+  #prep()
+rec
+
+
+#train_transformed_tbl <- bake(rec,train_tbl)
+#test_transformed_tbl <- bake(rec,test_tbl)
+
+# 4.0 Bundle Recipe with worflow ----
+
+
+bikes_wflow <- 
+  workflow() %>% 
+  add_model(lm_mod) %>% 
+  add_recipe(rec)
+bikes_wflow
+
+bikes_fit <- 
+  bikes_wflow %>%
+  fit(data = train_tbl)
+
+#predict(bikes_fit, test_tbl)
+
+# 5.0 Evaluate with yardstick package ----
+
+predict(bikes_fit, test_tbl)
+
+
+testing<- 
+  predict(bikes_fit, test_tbl, type = "class") %>%
+  bind_cols(test_tbl %>% select(price,model,model_year)) %>% 
+
+#testing %>%                   # test set predictions
+  roc_auc(truth = price, .pred)
+
+
+yardstick::metrics(truth = price, estimate = .pred)
 ```

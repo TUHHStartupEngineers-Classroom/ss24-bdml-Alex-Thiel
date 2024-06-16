@@ -3,96 +3,151 @@ title: "Automated machine Learing with H20 (1)"
 author: "Alexander Thiel"
 ---
 
-::: callout-note
-You can delete everything in here and start fresh.
-:::
-
-This is a `.qmd` file. It is plain text with special features. Any time you write just like this, it will be compiled to normal text in the website. If you put a \# in front of your text, it will create a top level-header.
-
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
-
-# Text Formatting
-
-*italics* and **bold**
-
-superscript^2^ / subscript~2~
-
-~~strikethrough~~
-
-`verbatim code`
-
-> Blockquote
-
-# Headings
-
-## Header 2
-### Header 3
-#### Header 4
-##### Header 5
-###### Header 6
-
-# Links & Images
-
-<https://quarto.org>
-
-[Quarto](https://quarto.org)
-
-![Caption](../../assets/img/elephant.png)
-
-[![Caption](../../assets/img/elephant.png)](https://quarto.org)
-
-[![Caption](../../assets/img/elephant.png)](https://quarto.org "An elephant")
 
 
-# Lists
+```{r, eval = F}
 
-* unordered list
-    + sub-item 1
-    + sub-item 2
-        - sub-sub-item 1
-        
-*   item 2
+# Libraries 
+library(tidyverse)
+library(readxl)
+library(skimr)
+library(GGally)
 
-    Continued (indent 4 spaces)
+# Load Data data definitions
+
+path_data_definitions <- "Data/data_definitions.xlsx"
+definitions_raw_tbl   <- read_excel(path_data_definitions, sheet = 1, col_names = FALSE)
+employee_attrition_tbl <- read_csv("Data/datasets-1067-1925-WA_Fn-UseC_-HR-Employee-Attrition.txt")
+
+```
+
+
+```{r}
+data <- employee_attrition_tbl %>%
+  select(Attrition, Age, Gender, MaritalStatus, NumCompaniesWorked, Over18, DistanceFromHome)
+
+plot_ggpairs <- function(data, color = NULL, density_alpha = 0.5) {
+  
+  color_expr <- enquo(color)
+  
+  if (rlang::quo_is_null(color_expr)) {
+    
+    g <- data %>%
+      ggpairs(lower = "blank") 
+    
+  } else {
+    
+    color_name <- quo_name(color_expr)
+    
+    g <- data %>%
+      ggpairs(mapping = aes_string(color = color_name), 
+              lower = "blank", legend = 1,
+              diag = list(continuous = wrap("densityDiag", 
+                                            alpha = density_alpha))) +
+      theme(legend.position = "bottom")
+  }
+  
+  return(g)
+  
+}
+```
+
+### 1. Compensation Features:
+
+```{r}
+#   3. Compensation features: HourlyRate, MonthlyIncome, StockOptionLevel 
+employee_attrition_tbl %>%
+  select(Attrition, contains("income"), contains("rate"), contains("salary"), contains("stock")) %>%
+  plot_ggpairs(Attrition)
+```
+#### What can be deduced about the interaction between Monthly income and Attrition?
+  
+    C is correct, those that are leaving the company have a lower monthly income than those that are staying. This can be seen by the median of the employees that are leaving having a median monthl income approximately equal to the lower quartile monthly income of the employees that have stayed with the company.
+
+#### What can you deduce about the interaction between Percent Salary Hike and Attrition?
+
+    D is correct, it is difficult to deduce anything based on the visualisation. The median percentage salary hike between the two groups of employees is approximately the same, and there overall shape of the plot on the diagonal is very similiar between the groups.
+    
+#### What can you deduce about the interaction betwen Stock Option Level and Attrition
+
+    B is correct, the employees that are staying have a higher stock option level. Based on the plot on the diagonal, the employyes that are leaving typically have a lower stock option level, typically of level "0". This is supported by the box and whisker plot which shows the median for this group being 0. The employees that are staying however have a much higher stock level option, equal to the upper quartile of the group that is leaving. 
+
+### Survey Results
+
+```{r}
+#   4. Survey Results: Satisfaction level, WorkLifeBalance 
+employee_attrition_tbl %>%
+  select(Attrition, contains("satisfaction"), contains("life")) %>%
+  plot_ggpairs(Attrition)
+```
+#### What can you deduce about the interaction between Environment Satisfaction and Attrition?
+
+    A is correct, based on the box and whisker plot, the relationship between attrition and environment satisfaction is negatively skewed, meaning that most of the employees leaving rated their satisfication with the environment lower.
+    
+#### What can you deduce about the interaction between Work Life Balance and Attrition
+
+    B is corret, the employees that are staying have a higher density of 2's and 3's. Shown by the larger red peaks at those values.
+    
+### Performance Data
+
+```{r}
+#   5. Performance Data: Job Involvment, Performance Rating
+employee_attrition_tbl %>%
+  select(Attrition, contains("performance"), contains("involvement")) %>%
+  plot_ggpairs(Attrition)
+```
+
+#### What Can you deduce about the interaction between Job Involvement and Attrition?
+
+    A is correct, the employees that are leaving have a lower density of 3's and 4's
+    
+### Work-Life Features
+
+```{r}
+#   6. Work-Life Features 
+employee_attrition_tbl %>%
+  select(Attrition, contains("overtime"), contains("travel")) %>%
+  plot_ggpairs(Attrition)
+
+```
+#### What can you deduce about the interaction between Over Time and Attrition?
+
+    B is correct, the proportion of employees working overtime that are not leaving is higher than those that are leaving
+    
+### Training and Education
+
+```{r}
+#   7. Training and Education 
+employee_attrition_tbl %>%
+  select(Attrition, contains("training"), contains("education")) %>%
+  plot_ggpairs(Attrition)
+
+```
+
+
+#### What can you deduce about the interaction between Training Times Last Year and Attrition
+
+    
+     B is correct, the median annual trainings for employees that stay is higher than for those that leave, indicating that the employees who stay typically have a larger number of training sessions per year.
+
+### Time-Based Features
+
+```{r}
+#   8. Time-Based Features: Years at company, years in current role
+employee_attrition_tbl %>%
+  select(Attrition, contains("years")) %>%
+  plot_ggpairs(Attrition)
+
+```
+
+
+#### What can you deduce about the interaction between Years At Company and Attrition 
+
+
+    B is correct, employees that leave tend to have less years working at the company.
+    
+#### What can you deduce about the interaction between Years Since Last Promotion and Attrition?
+
+    C, it is difficult to deduce anything. Since for both employees that are leaving and staying, the plots are very similiar for both groups. 
     
     
-1. ordered list
-2. item 2
-    i) sub-item 1
-         A.  sub-sub-item 1
-         
-(@)  A list whose numbering
-
-continues after
-
-(@)  an interruption
-
-# Tables
-
-| Right | Left | Default | Center |
-|------:|:-----|---------|:------:|
-|   12  |  12  |    12   |    12  |
-|  123  |  123 |   123   |   123  |
-|    1  |    1 |     1   |     1  |
-
-# Source Code
-
-Use ``` to delimit blocks of source code:
-
-```
-code
-```
-
-Add a language to syntax highlight code blocks:
-
-```{r}
-1 + 1
-```
-
-```{r}
-cars
-```
-
-```{r}
-plot(cars)
-```
