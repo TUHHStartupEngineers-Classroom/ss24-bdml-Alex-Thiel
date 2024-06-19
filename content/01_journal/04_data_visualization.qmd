@@ -1,8 +1,107 @@
 ---
-title: "Data Visualization"
-author: "Joschka Schwarz"
+title: "Automated H20 (2)"
+author: "Alexander Thiel"
 ---
 
+
+
+```{r}
+
+
+## H20 (II) Challenge ----
+
+library(tidyverse)
+library(readxl)
+library(rsample)
+library(recipes)
+library(h2o)
+
+
+# 1. Load the training and test dataset ----
+
+product_backorders_tbl <- read.csv("Data/product_backorders.csv")
+
+# Split into test and train
+set.seed(seed = 1113)
+split_obj <- rsample::initial_split(product_backorders_tbl, prop = 0.85)
+
+# Assign training and test data
+train_readable_tbl <- training(split_obj)
+test_readable_tbl  <- testing(split_obj)
+
+recipe_obj <- recipe(went_on_backorder ~., data = train_readable_tbl) %>% 
+  step_zv(all_predictors()) %>% 
+  #step_mutate_at(JobLevel, StockOptionLevel, fn = as.factor) %>% 
+  prep()
+
+train_tbl <- bake(recipe_obj, new_data = train_readable_tbl)
+test_tbl  <- bake(recipe_obj, new_data = test_readable_tbl)
+
+
+```
+
+```{r}
+# 2. Specify the response and Predictor variables ----
+h2o.init()
+
+split_h2o <- h2o.splitFrame(as.h2o(train_tbl), ratios = c(0.85), seed = 1234)
+train_h2o <- split_h2o[[1]]
+valid_h2o <- split_h2o[[2]]
+test_h2o  <- as.h2o(test_tbl)
+
+y <- "went_on_backorder"
+x <- setdiff(names(train_h2o), y)
+```
 ::: callout-note
-You can delete everything in here and start fresh.
+Please note, the execution of this code, was causing my computer to crash while rendering the quatro webpage.
+So the webpage has been published with eval = FALSE
 :::
+
+```{r, eval = FALSE}
+
+# 3. run AutoML specifying the stop criterion ----
+
+automl_models_h2o <- h2o.automl(
+  x = x,
+  y = y,
+  training_frame    = train_h2o,
+  #validation_frame  = valid_h2o,
+  leaderboard_frame = test_h2o,
+  max_runtime_secs  = 20,
+  nfolds            = 5 
+)
+
+
+# 4. View the leaderboard ----
+
+typeof(automl_models_h2o)
+slotNames(automl_models_h2o)
+automl_models_h2o@leaderboard
+automl_models_h2o@leader
+# 5. Predicting using the Leader Model
+
+h2o.getModel("StackedEnsemble_BestOfFamily_2_AutoML_1_20240619_111333")
+# Extracts and H2O model name by a position so can more easily use h2o.getModel()
+extract_h2o_model_name_by_position <- function(h2o_leaderboard, n = 1, verbose = T) {
+  
+  model_name <- h2o_leaderboard %>%
+    as.tibble() %>%
+    slice(n) %>%
+    pull(model_id)
+  
+  if (verbose) message(model_name)
+  
+  return(model_name)
+  
+}
+
+automl_models_h2o@leaderboard %>% 
+  extract_h2o_model_name_by_position(6) %>% 
+  h2o.getModel()
+# 6. Save the Leader Model ----
+
+h2o.getModel("StackedEnsemble_BestOfFamily_2_AutoML_1_20240619_111333") %>% 
+  h2o.saveModel(path = "04_Modeling/h20_models/")
+
+
+```
