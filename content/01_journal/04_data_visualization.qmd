@@ -31,7 +31,6 @@ test_readable_tbl  <- testing(split_obj)
 
 recipe_obj <- recipe(went_on_backorder ~., data = train_readable_tbl) %>% 
   step_zv(all_predictors()) %>% 
-  #step_mutate_at(JobLevel, StockOptionLevel, fn = as.factor) %>% 
   prep()
 
 train_tbl <- bake(recipe_obj, new_data = train_readable_tbl)
@@ -40,7 +39,7 @@ test_tbl  <- bake(recipe_obj, new_data = test_readable_tbl)
 
 ```
 
-```{r}
+```{r, eval = FALSE}
 # 2. Specify the response and Predictor variables ----
 h2o.init()
 
@@ -51,13 +50,6 @@ test_h2o  <- as.h2o(test_tbl)
 
 y <- "went_on_backorder"
 x <- setdiff(names(train_h2o), y)
-```
-::: callout-note
-Please note, the execution of this code, was causing my computer to crash while rendering the quatro webpage.
-So the webpage has been published with eval = FALSE
-:::
-
-```{r, eval = FALSE}
 
 # 3. run AutoML specifying the stop criterion ----
 
@@ -65,12 +57,11 @@ automl_models_h2o <- h2o.automl(
   x = x,
   y = y,
   training_frame    = train_h2o,
-  #validation_frame  = valid_h2o,
+  validation_frame  = valid_h2o,
   leaderboard_frame = test_h2o,
   max_runtime_secs  = 20,
   nfolds            = 5 
 )
-
 
 # 4. View the leaderboard ----
 
@@ -78,10 +69,10 @@ typeof(automl_models_h2o)
 slotNames(automl_models_h2o)
 automl_models_h2o@leaderboard
 automl_models_h2o@leader
+
 # 5. Predicting using the Leader Model
 
-h2o.getModel("StackedEnsemble_BestOfFamily_2_AutoML_1_20240619_111333")
-# Extracts and H2O model name by a position so can more easily use h2o.getModel()
+h2o.getModel("GBM_1_AutoML_1_20240619_151008")
 extract_h2o_model_name_by_position <- function(h2o_leaderboard, n = 1, verbose = T) {
   
   model_name <- h2o_leaderboard %>%
@@ -94,13 +85,9 @@ extract_h2o_model_name_by_position <- function(h2o_leaderboard, n = 1, verbose =
   return(model_name)
   
 }
-
-automl_models_h2o@leaderboard %>% 
-  extract_h2o_model_name_by_position(6) %>% 
-  h2o.getModel()
 # 6. Save the Leader Model ----
 
-h2o.getModel("StackedEnsemble_BestOfFamily_2_AutoML_1_20240619_111333") %>% 
+h2o.getModel("GBM_1_AutoML_1_20240619_151008") %>% 
   h2o.saveModel(path = "04_Modeling/h20_models/")
 
 
